@@ -77,14 +77,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { title: "The Art of Design — Interactive 3D Book" },
+      { name: "description", content: "A premium interactive 3D hardcover book. Drag to rotate, scroll to zoom, click to open and flip through the pages." },
       { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:title", content: "The Art of Design — Interactive 3D Book" },
+      { property: "og:description", content: "A premium interactive 3D hardcover book. Drag to rotate, scroll to zoom, click to open and flip through the pages." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "The Art of Design — Interactive 3D Book" },
+      { name: "twitter:description", content: "A premium interactive 3D hardcover book. Drag to rotate, scroll to zoom, click to open and flip through the pages." },
     ],
     links: [
       {
