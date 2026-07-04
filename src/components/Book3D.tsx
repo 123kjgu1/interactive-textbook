@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import gsap from "gsap";
+import confetti from "canvas-confetti";
+import { useState } from "react";
 
 import coverUrl from "@/assets/book-cover.jpg";
 import backUrl from "@/assets/book-back.jpg";
@@ -12,11 +14,237 @@ const BOOK_W = 3.2;
 const BOOK_H = 4.4;
 const BOOK_D = 0.55;
 const COVER_T = 0.05;
-const PAGE_COUNT = 8;
+const PAGE_COUNT = 4;
 const PAGE_GAP = (BOOK_D - COVER_T * 2) / PAGE_COUNT;
+
+// ---------- Page content ----------
+type PageContent = {
+  title: string;
+  body: string[]; // paragraphs
+  footer?: string[];
+  emojis: string[]; // decorative floating emojis
+  accent: string; // hex accent color
+};
+
+const PAGES: PageContent[] = [
+  {
+    title: "Chapter 1 — The Biggest Oops Ever!",
+    body: [
+      "Once upon a time, there lived one very confident human who believed he was always right.",
+      "Unfortunately, his brain decided to take a holiday at the worst possible moment.",
+      "One tiny mistake later… he accidentally hurt the most amazing friend in his life.",
+      "",
+      "🏆 Achievement Unlocked:  \"Professional Idiot\"",
+      "",
+      "Rewards:",
+      "💔  999 Regrets",
+      "😅  Unlimited Overthinking",
+      "😭  Zero Happiness",
+    ],
+    emojis: ["📖", "🤦‍♂️", "😂", "💥", "💔", "😅"],
+    accent: "#8a4a2b",
+  },
+  {
+    title: "Chapter 2 — Emergency Meeting",
+    body: [
+      "An emergency meeting started inside my head.",
+      "",
+      "🧠 Brain:  \"I told you not to say that!\"",
+      "👄 Mouth: \"I only followed your orders!\"",
+      "❤️ Heart: \"Can everyone stop arguing and just apologize?\"",
+      "",
+      "Even Google searched…",
+      "\"How to undo hurting someone's feelings?\"",
+      "",
+      "Search Result:",
+      "\"There is no Ctrl + Z in real life.\"",
+    ],
+    emojis: ["🧠", "💬", "❤️", "🤦‍♂️", "😂", "🔎"],
+    accent: "#6b3a8a",
+  },
+  {
+    title: "Chapter 3 — A Better Chapter",
+    body: [
+      "I can't change yesterday.",
+      "I can't erase my mistake.",
+      "I can't build a time machine…",
+      "(Trust me… I searched for one. 😅)",
+      "",
+      "But I can admit I was wrong.",
+      "I can learn from my mistake.",
+      "And I can promise to write better chapters in our friendship.",
+      "",
+      "If this little book made you smile even once…",
+      "then maybe… there's hope for an even happier ending.",
+    ],
+    emojis: ["🥹", "✨", "❤️", "⭐", "🌟", "💫"],
+    accent: "#b8862a",
+  },
+  {
+    title: "❤️  Official Apology  ❤️",
+    body: [
+      "After a very serious investigation…",
+      "the world's biggest idiot has finally accepted his mistake.",
+      "",
+      "And yes… that idiot is ME. 😅",
+      "",
+      "🥹 👉 👈",
+      "",
+      "Will you forgive this limited-edition fool and give our friendship one more beautiful chapter?",
+    ],
+    footer: ["— turn to the last page for the final word —"],
+    emojis: ["❤️", "💖", "💗", "✨", "🥹", "🌸"],
+    accent: "#c0392b",
+  },
+];
+
+function drawPageTexture(content: PageContent): THREE.CanvasTexture {
+  const W = 1024;
+  const H = 1400;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d")!;
+
+  // Paper background with subtle vignette
+  const grad = ctx.createRadialGradient(W / 2, H / 2, 100, W / 2, H / 2, W);
+  grad.addColorStop(0, "#fbf3df");
+  grad.addColorStop(1, "#e9dcb6");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Paper grain (noise)
+  const grain = ctx.getImageData(0, 0, W, H);
+  for (let i = 0; i < grain.data.length; i += 4) {
+    const n = (Math.random() - 0.5) * 14;
+    grain.data[i] = Math.max(0, Math.min(255, grain.data[i] + n));
+    grain.data[i + 1] = Math.max(0, Math.min(255, grain.data[i + 1] + n));
+    grain.data[i + 2] = Math.max(0, Math.min(255, grain.data[i + 2] + n));
+  }
+  ctx.putImageData(grain, 0, 0);
+
+  // Inner ornamental border
+  ctx.strokeStyle = content.accent;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(60, 60, W - 120, H - 120);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(76, 76, W - 152, H - 152);
+
+  // Corner ornaments
+  ctx.fillStyle = content.accent;
+  const corners: [number, number][] = [
+    [60, 60],
+    [W - 60, 60],
+    [60, H - 60],
+    [W - 60, H - 60],
+  ];
+  corners.forEach(([x, y]) => {
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Title
+  ctx.fillStyle = content.accent;
+  ctx.textAlign = "center";
+  ctx.font = "bold 54px Georgia, 'Times New Roman', serif";
+  wrapText(ctx, content.title, W / 2, 180, W - 200, 62);
+
+  // Divider
+  ctx.beginPath();
+  ctx.moveTo(W / 2 - 120, 250);
+  ctx.lineTo(W / 2 + 120, 250);
+  ctx.strokeStyle = content.accent;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(W / 2, 250, 6, 0, Math.PI * 2);
+  ctx.fillStyle = content.accent;
+  ctx.fill();
+
+  // Body text
+  ctx.fillStyle = "#2a1f14";
+  ctx.textAlign = "center";
+  ctx.font = "34px Georgia, 'Times New Roman', serif";
+  let y = 330;
+  const lineH = 52;
+  for (const para of content.body) {
+    if (para === "") {
+      y += lineH * 0.6;
+      continue;
+    }
+    y = wrapText(ctx, para, W / 2, y, W - 200, lineH) + lineH * 0.4;
+  }
+
+  // Footer
+  if (content.footer) {
+    ctx.fillStyle = content.accent;
+    ctx.font = "italic 24px Georgia, serif";
+    let fy = H - 180;
+    for (const line of content.footer) {
+      ctx.fillText(line, W / 2, fy);
+      fy += 34;
+    }
+  }
+
+  // Decorative emojis around margins
+  ctx.font = "60px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
+  const positions: [number, number][] = [
+    [130, 130],
+    [W - 130, 130],
+    [130, H - 140],
+    [W - 130, H - 140],
+    [130, H / 2],
+    [W - 130, H / 2],
+  ];
+  content.emojis.slice(0, positions.length).forEach((e, i) => {
+    const [x, yy] = positions[i];
+    ctx.fillText(e, x, yy);
+  });
+
+  // Page number
+  ctx.fillStyle = content.accent;
+  ctx.font = "italic 22px Georgia, serif";
+  ctx.fillText(`~ ${PAGES.indexOf(content) + 1} ~`, W / 2, H - 100);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+): number {
+  const words = text.split(" ");
+  let line = "";
+  for (let i = 0; i < words.length; i++) {
+    const test = line ? line + " " + words[i] : words[i];
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, y);
+      line = words[i];
+      y += lineHeight;
+    } else {
+      line = test;
+    }
+  }
+  if (line) {
+    ctx.fillText(line, x, y);
+    y += lineHeight;
+  }
+  return y;
+}
 
 export default function Book3D() {
   const mountRef = useRef<HTMLDivElement>(null);
+  const [showApology, setShowApology] = useState(false);
+  const [showThanks, setShowThanks] = useState(false);
+  const closeBookRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -112,11 +340,15 @@ export default function Book3D() {
       roughness: 0.55,
       metalness: 0.15,
     });
-    const pageMatFront = new THREE.MeshStandardMaterial({
-      map: texPage,
-      roughness: 0.95,
-      side: THREE.FrontSide,
-    });
+    // Per-page front materials with story-text canvas textures
+    const pageFrontMats = PAGES.map(
+      (pc) =>
+        new THREE.MeshStandardMaterial({
+          map: drawPageTexture(pc),
+          roughness: 0.95,
+          side: THREE.FrontSide,
+        }),
+    );
     const pageMatBack = new THREE.MeshStandardMaterial({
       map: texPage,
       roughness: 0.95,
@@ -132,7 +364,7 @@ export default function Book3D() {
     const pageW = BOOK_W - 0.15;
     const pageH = BOOK_H - pageInsetY * 2;
 
-    const buildPage = (yOffset: number) => {
+    const buildPage = (yOffset: number, idx: number) => {
       const pivot = new THREE.Group();
       pivot.position.set(-BOOK_W / 2 + 0.05, 0, yOffset);
 
@@ -140,7 +372,7 @@ export default function Book3D() {
       // shift so the left edge is at pivot
       geo.translate(pageW / 2, 0, 0);
 
-      const front = new THREE.Mesh(geo, pageMatFront);
+      const front = new THREE.Mesh(geo, pageFrontMats[idx]);
       front.castShadow = true;
       front.receiveShadow = true;
       pivot.add(front);
@@ -164,8 +396,10 @@ export default function Book3D() {
     const pages: THREE.Group[] = [];
     for (let i = 0; i < PAGE_COUNT; i++) {
       // stack from back (near back cover) to front (near front cover)
-      const y = -BOOK_D / 2 + COVER_T + PAGE_GAP * (i + 0.5);
-      const p = buildPage(y);
+      // page 0 must be on top (first read), so reverse order
+      const stackIdx = PAGE_COUNT - 1 - i;
+      const y = -BOOK_D / 2 + COVER_T + PAGE_GAP * (stackIdx + 0.5);
+      const p = buildPage(y, i);
       pagesGroup.add(p);
       pages.push(p);
     }
@@ -242,7 +476,7 @@ export default function Book3D() {
     const flipNext = () => {
       if (flipping) return;
       if (currentFlipped >= PAGE_COUNT) {
-        closeBook();
+        setShowApology(true);
         return;
       }
       flipping = true;
@@ -256,8 +490,8 @@ export default function Book3D() {
           currentFlipped++;
           flipping = false;
           if (currentFlipped >= PAGE_COUNT) {
-            // small pause then close
-            gsap.delayedCall(0.8, closeBook);
+            // reveal apology overlay after last page
+            gsap.delayedCall(0.6, () => setShowApology(true));
           }
         },
       });
@@ -297,6 +531,7 @@ export default function Book3D() {
         },
       });
     };
+    closeBookRef.current = closeBook;
 
     // ---------- Pointer events ----------
     const el = renderer.domElement;
@@ -399,5 +634,60 @@ export default function Book3D() {
     };
   }, []);
 
-  return <div ref={mountRef} className="h-full w-full touch-none" />;
+  const handleForgive = () => {
+    confetti({
+      particleCount: 220,
+      spread: 100,
+      origin: { y: 0.6 },
+      colors: ["#ff5b7f", "#ffd166", "#ef476f", "#ffffff", "#ffb3c1"],
+    });
+    setShowApology(false);
+    setTimeout(() => {
+      closeBookRef.current?.();
+      setShowThanks(true);
+    }, 400);
+  };
+
+  return (
+    <div className="relative h-full w-full">
+      <div ref={mountRef} className="h-full w-full touch-none" />
+
+      {showApology && (
+        <div className="pointer-events-auto absolute inset-0 z-20 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="mx-4 max-w-md rounded-2xl border border-amber-200/30 bg-gradient-to-b from-[#fdf6e3] to-[#f2e3b8] p-8 text-center shadow-2xl">
+            <div className="mb-3 text-6xl">❤️</div>
+            <h2 className="font-serif text-2xl text-[#8a2b2b]">
+              Official Apology
+            </h2>
+            <p className="mt-4 font-serif text-[#3b2a14]">
+              Will you forgive this limited-edition fool and give our friendship
+              one more beautiful chapter? 🥹👉👈
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button
+                onClick={handleForgive}
+                className="rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-6 py-3 font-semibold text-white shadow-lg transition hover:scale-105"
+              >
+                💖 Yes, I Forgive You
+              </button>
+              <button
+                onClick={handleForgive}
+                className="rounded-full border border-amber-700/40 bg-white/70 px-6 py-3 font-semibold text-[#7a4a1a] transition hover:scale-105"
+              >
+                😂 Only This Time
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showThanks && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-16 z-20 flex justify-center px-4">
+          <div className="rounded-full bg-black/70 px-6 py-3 text-center font-serif text-amber-100 shadow-xl backdrop-blur">
+            Thank you… I promise the next chapter will be full of smiles. ❤️📖
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
