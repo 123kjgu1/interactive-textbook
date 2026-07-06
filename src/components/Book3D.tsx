@@ -463,6 +463,7 @@ export default function Book3D() {
     // ---------- Interaction state ----------
     let opened = false;
     let flipping = false;
+    let lastFlipAt = 0;
     let currentFlipped = 0; // how many pages flipped (0..PAGE_COUNT)
     const hoverTilt = new THREE.Vector2(0, 0);
     const targetTilt = new THREE.Vector2(0, 0);
@@ -474,12 +475,14 @@ export default function Book3D() {
     };
 
     const flipNext = () => {
-      if (flipping) return;
+      const now = performance.now();
+      if (flipping || now - lastFlipAt < 250) return;
       if (currentFlipped >= PAGE_COUNT) {
         setShowApology(true);
         return;
       }
       flipping = true;
+      lastFlipAt = now;
       const idx = currentFlipped;
       const p = pages[idx];
       gsap.to(p.rotation, {
@@ -489,6 +492,7 @@ export default function Book3D() {
         onComplete: () => {
           currentFlipped++;
           flipping = false;
+          lastFlipAt = performance.now();
           if (currentFlipped >= PAGE_COUNT) {
             // reveal apology overlay after last page
             gsap.delayedCall(0.6, () => setShowApology(true));
@@ -558,21 +562,15 @@ export default function Book3D() {
         openBook();
         return;
       }
-      // check if right side clicked -> flip page
+      if (flipping) return;
       const rect = el.getBoundingClientRect();
       const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(new THREE.Vector2(nx, ny), camera);
-      const hits = raycaster.intersectObjects(pagesGroup.children, true);
-      if (hits.length > 0) {
-        // determine which page (frontmost unflipped)
+      if (nx >= 0) {
         flipNext();
-      } else if (nx > 0) {
-        flipNext();
-      } else if (nx < -0.2 && currentFlipped > 0) {
+      } else if (currentFlipped > 0) {
         // flip back
-        if (flipping) return;
         flipping = true;
+        lastFlipAt = performance.now();
         const idx = currentFlipped - 1;
         gsap.to(pages[idx].rotation, {
           y: 0,
@@ -581,6 +579,7 @@ export default function Book3D() {
           onComplete: () => {
             currentFlipped--;
             flipping = false;
+            lastFlipAt = performance.now();
           },
         });
       }
