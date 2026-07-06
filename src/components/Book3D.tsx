@@ -383,7 +383,12 @@ export default function Book3D() {
       for (let i = 0; i < uv.count; i++) {
         uv.setX(i, 1 - uv.getX(i));
       }
-      const back = new THREE.Mesh(backGeo, pageMatBack);
+      // Show the NEXT page's text on the back side, so once this page
+      // is flipped over, the reader sees the next chapter (instead of
+      // a blank page hiding the pages beneath).
+      const backMaterial =
+        idx + 1 < pageFrontMats.length ? pageFrontMats[idx + 1] : pageMatBack;
+      const back = new THREE.Mesh(backGeo, backMaterial);
       back.rotation.y = Math.PI;
       back.castShadow = true;
       back.receiveShadow = true;
